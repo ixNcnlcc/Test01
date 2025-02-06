@@ -24,11 +24,6 @@ const router = createRouter({
                     component: () => import('@/views/uikit/Crud01.vue')
                 },
                 {
-                    path: '/uikit/crud02',
-                    name: 'crud02',
-                    component: () => import('@/views/uikit/Crud02.vue')
-                },
-                {
                     path: '/uikit/input',
                     name: 'input',
                     component: () => import('@/views/uikit/InputDoc.vue')
