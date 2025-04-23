@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+from django.db import transaction
 import random
 
 class Person(models.Model):
@@ -11,23 +12,29 @@ class Person(models.Model):
     date = models.DateTimeField(auto_now_add=True)
     rfid = models.CharField(max_length=15, unique=True, blank=True)
 
+    @staticmethod
+    def generate_unique_value(length, model, field):
+        while True:
+            value = ''.join([str(random.randint(0, 9)) for _ in range(length)])
+            if not model.objects.filter(**{field: value}).exists():
+                return value
+
     def save(self, *args, **kwargs):
-        # สร้างรหัสนิสิต (nisit) สุ่ม 11 หลัก หากยังไม่มี
         if not self.nisit:
-            self.nisit = ''.join([str(random.randint(0, 9)) for _ in range(11)])
+            self.nisit = self.generate_unique_value(11, Person, 'nisit')
         
-        # สร้าง RFID สุ่ม 15 หลัก หากยังไม่มี
         if not self.rfid:
-            self.rfid = ''.join([str(random.randint(0, 9)) for _ in range(15)])
-        
-        # กำหนดค่า seat หากยังไม่มี
+            self.rfid = self.generate_unique_value(15, Person, 'rfid')
+
         if not self.seat:
-            last_person = Person.objects.order_by('-seat').first()
-            self.seat = last_person.seat + 1 if last_person else 1
-            
+            with transaction.atomic():
+                # Lock the table to prevent concurrent updates
+                last_person = Person.objects.select_for_update().order_by('-seat').first()
+                self.seat = last_person.seat + 1 if last_person else 1
+        
         super().save(*args, **kwargs)
 
-    def display_id(self):
+    def display_id(self):   
         return str(self.id).zfill(4)
 
     def __str__(self):

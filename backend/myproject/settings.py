@@ -37,9 +37,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'rest_framework',
-    'corsheaders',
     'api',
+    'rest_framework',
+    'import_export',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
@@ -53,8 +54,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+CORS_ALLOW_ALL_ORIGINS = True
+
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # URL ของ Vue (Vite)
+    "http://localhost:5173",
 ]
 
 ROOT_URLCONF = 'myproject.urls'
@@ -132,3 +135,13 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REST_FRAMEWORK = {
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10
+}
+
+# ตั้งค่าให้รองรับภาษาไทย
+IMPORT_EXPORT_USE_TRANSACTIONS = True  # ใช้ transaction เพื่อความปลอดภัย
+IMPORT_EXPORT_SKIP_ADMIN_LOG = True    # ปิด logging ถ้าไม่ต้องการ
+IMPORT_EXPORT_ENCODING = 'utf-8-sig'   # รองรับภาษาไทยใน Excel/CSV

@@ -15,7 +15,8 @@ const model = ref([
             { label: 'รายชื่อบัณฑิต', icon: 'material-symbols:patient-list-outline', to: '/uikit/crud01' },
             { label: 'รายชื่อที่ผ่านเข้าประตู', icon: 'material-symbols:person-check-outline-rounded', to: '/uikit/table2' },
             { label: 'File', icon: 'material-symbols:file-present-outline-sharp', to: '/uikit/file' },
-            { label: 'Chart', icon: 'material-symbols:grouped-bar-chart-rounded', to: '/uikit/charts' }
+            { label: 'Chart', icon: 'material-symbols:grouped-bar-chart-rounded', to: '/uikit/charts' },
+            { label: 'Test', icon: 'svg-spinners:ring-resize', to: '/uikit/test' }
         ]
     }
     // {

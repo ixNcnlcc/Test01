@@ -1,6 +1,18 @@
 <script setup>
 import { useLayout } from '@/layout/composables/layout';
 import AppConfigurator from './AppConfigurator.vue';
+import { useOnline } from '@vueuse/core';
+import { computed, onMounted } from 'vue';
+import { Icon, loadIcon } from '@iconify/vue';
+
+onMounted(async () => {
+    await loadIcon('material-symbols:wifi-off-rounded');
+});
+
+const online = useOnline();
+const wifistatus = computed(() => (online.value ? 'material-symbols:wifi-rounded' : 'material-symbols:wifi-off-rounded'));
+const clazz = computed(() => (online.value ? 'text-primary' : 'text-red-500'));
+const text = computed(() => (online.value ? 'Online' : 'Offline'));
 
 const { toggleMenu, toggleDarkMode, isDarkTheme } = useLayout();
 </script>
@@ -20,6 +32,9 @@ const { toggleMenu, toggleDarkMode, isDarkTheme } = useLayout();
         </div>
 
         <div class="layout-topbar-actions">
+            <div class="layout-config-menu">
+                <b class="flex items-center gap-2 text-2xl" :class="clazz"><Icon :icon="wifistatus" />{{ text }}</b>
+            </div>
             <div class="layout-config-menu">
                 <button type="button" class="layout-topbar-action" @click="toggleDarkMode">
                     <i :class="['pi', { 'pi-moon': isDarkTheme, 'pi-sun': !isDarkTheme }]"></i>

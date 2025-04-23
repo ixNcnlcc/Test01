@@ -1,8 +1,152 @@
+from django.http import HttpResponse
+from .resources import PersonResource
+from tablib import Dataset
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAdminUser
 from .models import Person
 from .serializers import PersonSerializer
+from django.db import transaction, connection
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+import urllib.parse
+import os
+import io
+
+class ResetDatabase(APIView):
+    def post(self, request):
+        try:
+            with transaction.atomic():
+                # 1. ลบข้อมูลทั้งหมด
+                Person.objects.all().delete()
+                
+                # 2. รีเซ็ต AUTO_INCREMENT (MySQL เท่านั้น)
+                if 'mysql' in connection.settings_dict['ENGINE']:
+                    cursor = connection.cursor()
+                    table_name = Person._meta.db_table  # ดึงชื่อตารางจริงจากโมเดล
+                    cursor.execute(f"ALTER TABLE {table_name} AUTO_INCREMENT = 1;")
+                
+                return Response(
+                    {'success': 'รีเซ็ตฐานข้อมูลสำเร็จ'}, 
+                    status=status.HTTP_200_OK
+                )
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class ExportPDF(APIView):
+    def get(self, request):
+        try:
+            # ตั้งค่า Font ไทย
+            BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            FONT_PATH = os.path.join(BASE_DIR, 'fonts', 'THSarabunNew.ttf')
+            pdfmetrics.registerFont(TTFont('THSarabun', FONT_PATH))
+
+            buffer = io.BytesIO()
+            p = canvas.Canvas(buffer, pagesize=A4)
+            p.setFont('THSarabun', 14)
+
+            # เขียนหัวตาราง
+            p.drawString(50, 800, "ลำดับ")
+            p.drawString(150, 800, "ชื่อ-นามสกุล")
+            p.drawString(300, 800, "รหัสนิสิต")
+            p.drawString(400, 800, "สถานะรายงานตัว")
+
+            # ดึงข้อมูล
+            persons = Person.objects.all().order_by('seat')
+            y_position = 780  # ตำแหน่งเริ่มต้น
+
+            for i, person in enumerate(persons, start=1):
+                p.drawString(50, y_position, f"{i:04d}")
+                p.drawString(150, y_position, person.name)
+                p.drawString(300, y_position, person.nisit)
+                p.drawString(400, y_position, str(person.verified))
+                y_position -= 20  # เลื่อนบรรทัด
+
+                # ขึ้นหน้าใหม่หากข้อมูลเต็มหน้า
+                if y_position < 50:
+                    p.showPage()
+                    y_position = 800
+                    p.setFont('THSarabun', 14)
+
+            p.save()
+            buffer.seek(0)
+
+            # สร้าง HTTP Response
+            response = HttpResponse(
+                buffer.getvalue(),
+                content_type='application/pdf'
+            )
+            response['Content-Disposition'] = 'attachment; filename="graduates.pdf"'
+            return response
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
+class ExportData(APIView):
+    def get(self, request, format_type):
+        resource = PersonResource()
+        dataset = resource.export()
+        response = None  # กำหนดค่าเริ่มต้น
+
+        try:
+            format_type = format_type.lower()  # แปลงเป็นตัวเล็กทั้งหมด
+
+            if format_type == 'xlsx':
+                response = HttpResponse(
+                    dataset.xlsx,
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                filename = urllib.parse.quote('รายชื่อบัณฑิต.xlsx')
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            elif format_type == 'csv':
+                response = HttpResponse(dataset.csv, content_type='text/csv; charset=utf-8-sig')
+                filename = urllib.parse.quote('รายชื่อบัณฑิต.csv')
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            else:
+                return Response(
+                    {'error': 'รูปแบบไฟล์ไม่ถูกต้อง'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            return response
+
+        except Exception as e:
+            return Response(
+                {'error': 'Internal Server Error'}, 
+                status=500
+            )
+
+class ImportData(APIView):
+    def post(self, request):
+        file = request.FILES['file']
+        dataset = Dataset()
+        resource = PersonResource()
+
+        # อ่านไฟล์ Excel/CSV
+        if file.name.endswith('.xlsx'):
+            dataset.load(file.read(), format='xlsx')
+        elif file.name.endswith('.csv'):
+            dataset.load(file.read().decode('utf-8-sig'), format='csv')
+
+        # Import ข้อมูล
+        result = resource.import_data(dataset, dry_run=False)
+        
+        if result.has_errors():
+            return Response({'error': 'พบข้อผิดพลาดในข้อมูล'}, status=400)
+        
+        return Response({'success': 'นำเข้าข้อมูลสำเร็จ'})
 
 class StatsView(APIView):
     def get(self, request):
@@ -45,12 +189,16 @@ class PersonList(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request):
-        ids = request.data.get('ids', [])  # รับรายการ ID ที่ต้องการลบ
+        ids = request.data.get('ids', [])
         if not ids:
             return Response({'error': 'No IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
 
-        Person.objects.filter(id__in=ids).delete()  # ลบข้อมูลตาม ID
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            with transaction.atomic():
+                Person.objects.filter(id__in=ids).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 
 class PersonDetail(APIView):

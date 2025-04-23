@@ -7,13 +7,15 @@ import { Icon } from '@iconify/vue';
 
 const toast = useToast();
 const dt = ref();
-// const persons = ref();
 const persons = ref();
+
+// Dialog
 const productDialog = ref(false);
 const UploadDialog = ref(false);
 const ExportDialog = ref(false);
 const deleteProductDialog = ref(false);
 const deletepersonsDialog = ref(false);
+
 const product = ref({});
 const selectedpersons = ref();
 const filters = ref({
@@ -22,6 +24,158 @@ const filters = ref({
 const submitted = ref(false);
 const loading = ref(false);
 const filteredVerified = ref(null);
+
+// รีเซ็ตข้อมูล
+const confirmResetDialog1 = ref(false);
+const confirmResetDialog2 = ref(false);
+const resetKeyword = ref('');
+
+const confirmResetdatabase = () => {
+    confirmResetDialog1.value = true;
+};
+
+const handleResetStep1 = () => {
+    confirmResetDialog1.value = false;
+    confirmResetDialog2.value = true;
+};
+
+const handleResetStep2 = async () => {
+    if (resetKeyword.value.toUpperCase() !== 'RESET') {
+        toast.add({
+            severity: 'error',
+            summary: 'ยืนยันไม่สำเร็จ',
+            detail: 'กรุณาพิมพ์คำว่า "RESET" ให้ถูกต้อง',
+            life: 3000
+        });
+        resetKeyword.value = '';
+        return;
+    }
+    try {
+        await axios.post('http://localhost:8000/api/reset/');
+        await fetchPersons();
+        toast.add({
+            severity: 'success',
+            summary: 'รีเซ็ตสำเร็จ',
+            detail: 'ลบข้อมูลทั้งหมดเรียบร้อย',
+            life: 5000
+        });
+    } catch (error) {
+        toast.add({
+            severity: 'error',
+            summary: 'รีเซ็ตล้มเหลว',
+            detail: error.response?.data?.error || 'เกิดข้อผิดพลาด',
+            life: 5000
+        });
+    } finally {
+        confirmResetDialog2.value = false;
+        resetKeyword.value = '';
+    }
+};
+
+const exportPDF = async () => {
+    try {
+        const response = await axios.get('http://localhost:8000/api/export-pdf/', {
+            responseType: 'blob',
+            timeout: 30000
+        });
+
+        // ตรวจสอบขนาดไฟล์
+        if (response.data.size < 1024) {
+            throw new Error('ไฟล์ PDF ว่างเปล่า');
+        }
+
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'รายชื่อบัณฑิต.pdf');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    } catch (error) {
+        console.error('PDF Export Error:', error);
+        alert('ส่งออก PDF ไม่สำเร็จ: ' + error.message);
+    }
+};
+
+// Export ข้อมูล
+const exportData = async (format) => {
+    try {
+        const response = await axios.get(`http://localhost:8000/api/export/${format}/`, { responseType: 'blob' });
+
+        // สร้างลิงก์ดาวน์โหลด
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `persons${format}.${format}`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    } catch (error) {
+        console.error('Export error:', error);
+    }
+};
+
+// อัพโหลด
+const file = ref(null);
+const progress = ref(0);
+const visible = ref(false);
+const interval = ref(null);
+const uploadInProgress = ref(false);
+
+const handleFileSelect = (event) => {
+    file.value = event.target.files[0];
+};
+
+const handleFileUpload = async () => {
+    if (!file.value) {
+        alert('กรุณาเลือกไฟล์ก่อน');
+        return;
+    }
+
+    uploadInProgress.value = true;
+    visible.value = true;
+    progress.value = 0;
+
+    const formData = new FormData();
+    formData.append('file', file.value);
+
+    try {
+        await axios.post('http://localhost:8000/api/import/', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (progressEvent) => {
+                progress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            }
+        });
+
+        toast.add({
+            severity: 'success',
+            summary: 'อัปโหลดสำเร็จ',
+            detail: 'นำเข้าข้อมูลเรียบร้อย',
+            life: 5000
+        });
+
+        await fetchPersons();
+    } catch (error) {
+        toast.add({
+            severity: 'error',
+            summary: 'อัปโหลดล้มเหลว',
+            detail: error.response?.data?.error || 'เกิดข้อผิดพลาด',
+            life: 5000
+        });
+    } finally {
+        uploadInProgress.value = false;
+        file.value = null;
+        UploadDialog.value = false;
+    }
+};
+
+const cancelUpload = () => {
+    if (interval.value) clearInterval(interval.value);
+    visible.value = false;
+    progress.value = 0;
+    file.value = null;
+    uploadInProgress.value = false;
+};
 
 // กรองคนรายงานตัว
 const applyVerifiedFilter = (value) => {
@@ -91,27 +245,32 @@ const deleteProduct = async () => {
     }
 };
 
-const deleteSelectedpersons = async () => {
-    if (!selectedpersons.value || !selectedpersons.value.length) {
-        toast.add({ severity: 'warn', summary: 'คำเตือน', detail: 'กรุณาเลือกรายการที่ต้องการลบ', life: 3000 });
-        return;
-    }
-
+// Crud01.vue
+async function deleteSelectedpersons() {
     try {
-        const ids = selectedpersons.value.map((person) => person.id); // ดึง ID ของรายการที่เลือก
-        await axios.delete('http://127.0.0.1:8000/api/person/delete/', { data: { ids } }); // ส่ง ID ไปยัง Backend
+        const ids = selectedpersons.value.map((person) => person.id);
+        await axios.delete('http://127.0.0.1:8000/api/person/delete/', {
+            data: { ids },
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
 
-        // อัปเดตรายการใน Frontend
-        persons.value = persons.value.filter((val) => !selectedpersons.value.includes(val));
+        persons.value = persons.value.filter((val) => !ids.includes(val.id));
         selectedpersons.value = null;
         deletepersonsDialog.value = false;
 
         toast.add({ severity: 'success', summary: 'สำเร็จ', detail: 'ลบรายการเรียบร้อย', life: 3000 });
     } catch (error) {
         console.error('Error deleting data:', error);
-        toast.add({ severity: 'error', summary: 'เกิดข้อผิดพลาด', detail: 'ลบรายการไม่สำเร็จ', life: 3000 });
+        toast.add({
+            severity: 'error',
+            summary: 'เกิดข้อผิดพลาด',
+            detail: error.response?.data?.error || 'ลบรายการไม่สำเร็จ',
+            life: 5000
+        });
     }
-};
+}
 
 function confirmDeleteSelected() {
     deletepersonsDialog.value = true;
@@ -180,11 +339,6 @@ const items = ref([
         }
     }
 ]);
-
-function exportCSV() {
-    dt.value.exportCSV();
-    ExportDialog.value = false;
-}
 </script>
 
 <template>
@@ -198,10 +352,13 @@ function exportCSV() {
                     <Button v-tooltip.top="'ลบรายการที่เลือก'" severity="secondary" class="mr-2" @click="confirmDeleteSelected" :disabled="!selectedpersons || !selectedpersons.length" rounded raised>
                         <Icon icon="mdi:trash-can-outline" />
                     </Button>
+                    <Button v-tooltip.top="'รีเซ็ตข้อมูล'" severity="secondary" class="mr-2" @click="confirmResetdatabase" rounded raised>
+                        <Icon icon="lucide:database-backup" />
+                    </Button>
                 </template>
 
                 <template #end>
-                    <Button severity="secondary" class="mr-2" @click="confirmUpload" rounded raised> <Icon icon="lets-icons:import" />อัพโหลดไฟล์</Button>
+                    <Button severity="secondary" class="mr-2" @click="confirmUpload" rounded raised> <Icon icon="lets-icons:import" />อัปโหลดไฟล์</Button>
                     <Button severity="secondary" class="mr-2" @click="choseExport" rounded raised> <Icon icon="lets-icons:export" />โหลดไฟล์ </Button>
                 </template>
             </Toolbar>
@@ -216,7 +373,7 @@ function exportCSV() {
                 :filters="filters"
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                 :rowsPerPageOptions="[5, 10, 25]"
-                currentPageReportTemplate="โชว์จำนวน {first} ถึง {last} ของทั้งหมด {totalRecords} คน"
+                currentPageReportTemplate="จาก   {first} ถึง {last} ของทั้งหมด {totalRecords} คน"
                 :sortField="'formatted_id'"
                 :sortOrder="1"
             >
@@ -362,79 +519,53 @@ function exportCSV() {
             </template>
         </Dialog>
 
-        <Dialog v-model:visible="UploadDialog" header="อัพโหลด" :modal="true">
-            <div class="flex flex-col items-center justify-center gap-6 card">
-                <FileUpload name="demo[]" url="/api/upload" @upload="onTemplatedUpload($event)" :multiple="true" accept="image/*" :maxFileSize="1000000" @select="onSelectedFiles">
-                    <template #header="{ chooseCallback, uploadCallback, clearCallback, files }">
-                        <div class="flex flex-wrap items-center justify-between flex-1 gap-4">
-                            <div class="flex gap-2">
-                                <Button @click="chooseCallback()" icon="pi pi-images" rounded outlined severity="secondary"></Button>
-                                <Button @click="uploadEvent(uploadCallback)" icon="pi pi-cloud-upload" rounded outlined severity="success" :disabled="!files || files.length === 0"></Button>
-                                <Button @click="clearCallback()" icon="pi pi-times" rounded outlined severity="danger" :disabled="!files || files.length === 0"></Button>
-                            </div>
-                            <ProgressBar :value="totalSizePercent" :showValue="false" class="w-full h-1 md:w-20rem md:ml-auto">
-                                <span class="whitespace-nowrap">{{ totalSize }}B / 1Mb</span>
-                            </ProgressBar>
-                        </div>
-                    </template>
-                    <template #content="{ files, uploadedFiles, removeUploadedFileCallback, removeFileCallback, messages }">
-                        <div class="flex flex-col gap-8 pt-4">
-                            <Message v-for="message of messages" :key="message" :class="{ 'mb-8': !files.length && !uploadedFiles.length }" severity="error">
-                                {{ message }}
-                            </Message>
+        <Dialog v-model:visible="UploadDialog" header="อัปโหลดไฟล์" :modal="true" :closable="!uploadInProgress">
+            <div class="flex flex-col items-center gap-4">
+                <!-- แสดงชื่อไฟล์ -->
+                <div class="py-2 border-l-4 border-primary-700 bg-primary-400 card">
+                    <div v-if="file" class="flex items-center text-black">
+                        <Icon icon="clarity:file-line" class="text-4xl" />
+                        <p class="font-bold break-all">{{ file.name }}</p>
+                    </div>
+                </div>
 
-                            <div v-if="files.length > 0">
-                                <h5>Pending</h5>
-                                <div class="flex flex-wrap gap-4">
-                                    <div v-for="(file, index) of files" :key="file.name + file.type + file.size" class="flex flex-col items-center gap-4 p-8 border rounded-border border-surface">
-                                        <div>
-                                            <img role="presentation" :alt="file.name" :src="file.objectURL" width="100" height="50" />
-                                        </div>
-                                        <span class="overflow-hidden font-semibold text-ellipsis max-w-60 whitespace-nowrap">{{ file.name }}</span>
-                                        <div>{{ formatSize(file.size) }}</div>
-                                        <Badge value="Pending" severity="warn" />
-                                        <Button icon="pi pi-times" @click="onRemoveTemplatingFile(file, removeFileCallback, index)" outlined rounded severity="danger" />
-                                    </div>
-                                </div>
-                            </div>
+                <!-- ปุ่มเลือกไฟล์ -->
+                <input type="file" accept=".xlsx,.csv" @change="handleFileSelect" ref="fileInput" hidden />
+                <Button @click="$refs.fileInput.click()" :disabled="uploadInProgress">
+                    <Icon icon="lets-icons:import" />
+                    {{ file ? 'เปลี่ยนไฟล์' : 'เลือกไฟล์' }}
+                </Button>
 
-                            <div v-if="uploadedFiles.length > 0">
-                                <h5>Completed</h5>
-                                <div class="flex flex-wrap gap-4">
-                                    <div v-for="(file, index) of uploadedFiles" :key="file.name + file.type + file.size" class="flex flex-col items-center gap-4 p-8 border rounded-border border-surface">
-                                        <div>
-                                            <img role="presentation" :alt="file.name" :src="file.objectURL" width="100" height="50" />
-                                        </div>
-                                        <span class="overflow-hidden font-semibold text-ellipsis max-w-60 whitespace-nowrap">{{ file.name }}</span>
-                                        <div>{{ formatSize(file.size) }}</div>
-                                        <Badge value="Completed" class="mt-4" severity="success" />
-                                        <Button icon="pi pi-times" @click="removeUploadedFileCallback(index)" outlined rounded severity="danger" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                    <template #empty>
-                        <div class="flex flex-col items-center justify-center">
-                            <i class="pi pi-cloud-upload !border-2 !rounded-full !p-8 !text-4xl !text-muted-color" />
-                            <p class="mt-6 mb-0">Drag and drop files to here to upload.</p>
-                        </div>
-                    </template>
-                </FileUpload>
+                <!-- Progress Bar -->
+                <ProgressBar v-if="uploadInProgress" :value="progress" :showValue="false" class="w-full" style="height: 4px" />
             </div>
+
             <template #footer>
-                <Button label="ยกเลิก" icon="pi pi-times" text @click="deleteProductDialog = false" severity="danger" />
-                <Button label="ยืนยัน" icon="pi pi-check" text @click="Upload" />
+                <Button label="ยกเลิก" icon="pi pi-times" @click="cancelUpload, (UploadDialog = false)" severity="danger" :disabled="uploadInProgress" />
+                <Button label="ยืนยัน" icon="pi pi-check" @click="handleFileUpload" :loading="uploadInProgress" :disabled="!file || uploadInProgress" />
             </template>
         </Dialog>
 
+        <!-- Toast Notification -->
+        <Toast position="top-center" group="crud">
+            <template #message="slotProps">
+                <div class="flex items-center gap-3">
+                    <Icon :icon="slotProps.message.severity === 'success' ? 'line-md:confirm-circle-twotone' : 'line-md:close-circle-twotone'" class="text-2xl" />
+                    <div>
+                        <p class="font-bold">{{ slotProps.message.summary }}</p>
+                        <p class="text-sm">{{ slotProps.message.detail }}</p>
+                    </div>
+                </div>
+            </template>
+        </Toast>
+
         <Dialog v-model:visible="ExportDialog" header="โหลดไฟล์" :modal="true">
-            <div class="flex flex-col items-center justify-center gap-6 card">
-                <Button severity="secondary" class="mr-2" @click="exportCSV" rounded raised>
+            <div class="flex items-center justify-center">
+                <Button severity="secondary" class="mr-2" @click="exportData('xlsx')" rounded raised>
                     <Icon icon="vscode-icons:file-type-excel"></Icon>
                     <span>โหลดไฟล์เป็น Excel</span>
                 </Button>
-                <Button severity="secondary" class="mr-2" @click="exportCSV" rounded raised>
+                <Button severity="secondary" class="mr-2" @click="exportData('csv')" rounded raised>
                     <Icon icon="catppuccin:csv"></Icon>
                     <span>โหลดไฟล์เป็น CSV</span>
                 </Button>
@@ -443,6 +574,37 @@ function exportCSV() {
                     <span>โหลดไฟล์เป็น PDF</span>
                 </Button>
             </div>
+        </Dialog>
+
+        <!-- Dialog ยืนยันขั้นที่ 1 -->
+        <Dialog v-model:visible="confirmResetDialog1" header="ยืนยันการรีเซ็ต" :modal="true" :style="{ width: '500px' }">
+            <div class="flex items-center gap-4 p-4">
+                <Icon icon="bi:exclamation-triangle-fill" class="text-yellow-300" />
+                <div>
+                    <h3 class="mb-2 text-lg font-bold">คุณแน่ใจที่จะรีเซ็ตฐานข้อมูลทั้งหมด?</h3>
+                    <p class="text-black">การกระทำนี้จะลบข้อมูลทุกรายการและไม่สามารถกู้คืนได้</p>
+                </div>
+            </div>
+            <template #footer>
+                <Button label="ยกเลิก" icon="pi pi-times" @click="confirmResetDialog1 = false" severity="secondary" text />
+                <Button label="ดำเนินการต่อ" icon="pi pi-arrow-right" @click="handleResetStep1" severity="danger" />
+            </template>
+        </Dialog>
+
+        <!-- Dialog ยืนยันขั้นที่ 2 -->
+        <Dialog v-model:visible="confirmResetDialog2" header="ยืนยันขั้นสุดท้าย" :modal="true" :style="{ width: '500px' }">
+            <div class="flex flex-col gap-4 p-4">
+                <div class="flex items-center gap-4">
+                    <Icon icon="teenyicons:shield-solid" class="text-3xl text-red-500" />
+                    <h3 class="text-lg font-bold">กรุณาพิมพ์คำว่า "RESET"</h3>
+                </div>
+
+                <InputText v-model="resetKeyword" placeholder="พิมพ์คำว่า RESET ที่นี่" class="w-full" autocomplete="off" @keyup.enter="handleResetStep2" />
+            </div>
+            <template #footer>
+                <Button label="ยกเลิก" icon="pi pi-times" @click="confirmResetDialog2 = false" severity="secondary" text />
+                <Button label="ยืนยันรีเซ็ต" icon="pi pi-check" @click="handleResetStep2" :disabled="resetKeyword.toUpperCase() !== 'RESET'" severity="danger" />
+            </template>
         </Dialog>
 
         <Dialog v-model:visible="deleteProductDialog" header="ยืนยันการลบ" :modal="true">
