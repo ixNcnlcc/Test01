@@ -11,7 +11,7 @@ const model = ref([
     {
         label: 'Menu',
         items: [
-            { label: 'แผนที่นั่ง', icon: 'material-symbols:airline-seat-recline-normal', to: '/uikit/formlayout' },
+            { label: 'แผนที่นั่ง', icon: 'material-symbols:airline-seat-recline-normal', to: '/uikit/Seat' },
             { label: 'รายชื่อบัณฑิต', icon: 'material-symbols:patient-list-outline', to: '/uikit/crud01' },
             { label: 'รายชื่อที่ผ่านเข้าประตู', icon: 'material-symbols:person-check-outline-rounded', to: '/uikit/table2' },
             { label: 'File', icon: 'material-symbols:file-present-outline-sharp', to: '/uikit/file' },

@@ -499,7 +499,7 @@ const items = ref([
                     <label for="rfid" class="block mb-3 font-bold">รหัส RFID</label>
                     <InputText id="rfid" v-model.trim="product.rfid" required="true" autofocus :invalid="submitted && !product.rfid" fluid />
                 </div>
-                <!-- 
+                <!--
 
                 <div class="grid grid-cols-12 gap-4">
                     <div class="col-span-6">
