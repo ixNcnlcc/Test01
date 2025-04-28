@@ -33,8 +33,10 @@ onMounted(fetchPersons);
 <template>
     <div>
         <div v-if="loading">กำลังโหลดข้อมูล...</div>
-        <div class="grid flex flex-col">
-            <div class="card flex h-auto w-auto" v-for="(persons, index) in persons" :key="index">(ID: {{ persons.formatted_id }})</div>
+        <div class="card grid grid-cols-6 grid-rows-5 gap-5">
+            <div class="min-h-[100px] rounded-lg bg-orange-500 shadow">01</div>
+            <div class="min-h-[100px] rounded-lg bg-orange-500 shadow">02</div>
+            <!-- <div class="" v-for="(persons, index) in persons" :key="index">( {{ persons.id }} )</div> -->
         </div>
     </div>
 </template>
