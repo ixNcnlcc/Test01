@@ -34,11 +34,11 @@ onMounted(fetchPersons);
 <template>
     <div>
         <div v-if="loading">กำลังโหลดข้อมูล...</div>
-        <div class="card grid grid-cols-12 grid-rows-20 gap-3">
-            <div v-for="(person, index) in persons" :key="index" class="w-16 h-16 flex items-center justify-center bg-blue shadow-md rounded border border-gray-500">
+        <div class="card grid grid-cols-12 grid-rows-20 gap-2">
+            <div v-for="(person, index) in persons" :key="index" class="w-20 h-20 flex items-center justify-center bg-blue shadow-md rounded border border-gray-500">
                 <Icon
                     icon="material-symbols:event-seat"
-                    class="w-8 h-8"
+                    class="text-4xl"
                     :class="{
                         'text-green-500': person.verified === 1,
                         'text-red-500': person.verified === 0,
@@ -52,16 +52,6 @@ onMounted(fetchPersons);
 </template>
 
 <style scoped>
-.iconify {
-    width: 18px;
-    height: 18px;
-}
-.grid-cols-10 {
-    grid-template-columns: repeat(10, minmax(0, 1fr));
-}
-.grid-rows-20 {
-    grid-template-rows: repeat(20, minmax(0, 1fr));
-}
 /* สไตล์สำหรับที่นั่ง */
 .grid div {
     display: flex;
