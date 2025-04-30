@@ -69,6 +69,12 @@ function onDialogShow() {
         document.querySelector('.p-dialog').classList.add('transition-opacity');
     }, 10);
 }
+function highlightMatch(text) {
+    const query = searchQuery.value.trim();
+    if (!query) return text;
+    const regex = new RegExp(`(${query})`, 'gi');
+    return text.replace(regex, '<mark>$1</mark>');
+}
 
 onMounted(fetchPersons);
 </script>
@@ -78,9 +84,9 @@ onMounted(fetchPersons);
         <!-- Search bar -->
         <div class="my-3 relative">
             <!-- ไอคอนค้นหาด้านซ้าย -->
-            <Icon icon="material-symbols:search" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <Icon icon="material-symbols:search" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
             <!-- ช่องกรอกข้อมูล -->
-            <input v-model="searchQuery" type="text" placeholder="ค้นหา (ชื่อ, ID, รหัสนิสิต...)" class="p-inputtext p-component pl-10 w-full" />
+            <input v-model="searchQuery" type="text" placeholder="ค้นหา (ชื่อ, ID, รหัสนิสิต...)" class="p-inputtext p-component pl-10 w-full h-12" />
         </div>
 
         <!-- Loading -->
@@ -92,6 +98,7 @@ onMounted(fetchPersons);
                 <Icon
                     icon="material-symbols:event-seat"
                     class="text-4xl cursor-pointer"
+                    
                     :class="{
                         'text-green-500': person.verified === 1,
                         'text-red-500': person.verified === 0,
@@ -99,7 +106,7 @@ onMounted(fetchPersons);
                     }"
                     @click="() => showPersonDetail(person)"
                 />
-                <div class="text-xs mt-1">{{ person.seat }}</div>
+                <div class="text-xs mt-2" v-html="highlightMatch(person.seat.toString())"></div>
             </div>
         </div>
 
