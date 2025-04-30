@@ -8,6 +8,7 @@ import { Icon } from '@iconify/vue';
 const toast = useToast();
 const dt = ref();
 const persons = ref();
+const searchQuery = ref(''); // ตัวแปรสำหรับการค้นหา
 
 // Dialog
 const productDialog = ref(false);

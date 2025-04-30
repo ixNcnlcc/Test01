@@ -3,7 +3,7 @@ document.documentElement.classList.add('app-dark');
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
-
+import { Icon } from '@iconify/vue';
 import Aura from '@primevue/themes/aura';
 import PrimeVue from 'primevue/config';
 import ConfirmationService from 'primevue/confirmationservice';
@@ -82,5 +82,5 @@ app.use(ToastService);
 app.use(ConfirmationService);
 app.directive('tooltip', Tooltip);
 app.component('downloadExcel', JsonExcel);
-
+app.component('Icon', Icon);
 app.mount('#app');
