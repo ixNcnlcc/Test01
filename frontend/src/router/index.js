@@ -34,9 +34,9 @@ const router = createRouter({
                     component: () => import('@/views/uikit/Crud01.vue')
                 },
                 {
-                    path: '/uikit/input',
+                    path: '/uikit/List',
                     name: 'input',
-                    component: () => import('@/views/uikit/InputDoc.vue')
+                    component: () => import('@/views/uikit/ListDoc.vue')
                 },
                 {
                     path: '/uikit/button',

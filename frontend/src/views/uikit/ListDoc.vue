@@ -1,163 +1,165 @@
 <script setup>
-import { ProductService } from '@/service/ProductService';
-import { onMounted, ref } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import axios from 'axios';
+import { Icon } from '@iconify/vue';
+import Dialog from 'primevue/dialog';
+import Paginator from 'primevue/paginator';
+import io from 'socket.io-client';
 
-const products = ref(null);
-const picklistProducts = ref(null);
-const orderlistProducts = ref(null);
-const options = ref(['list', 'grid']);
-const layout = ref('list');
+// สร้างตัวแปรต่างๆ
+const persons = ref([]);
+const loading = ref(false);
+const searchQuery = ref('');
+const dialogVisible = ref(false);
+const selectedPerson = ref({});
 
-onMounted(() => {
-    ProductService.getProductsSmall().then((data) => {
-        products.value = data.slice(0, 6);
-        picklistProducts.value = [data, []];
-        orderlistProducts.value = data;
-    });
-});
+const currentPage = ref(0);
+const rowsPerPage = ref(180);
 
-function getSeverity(product) {
-    switch (product.inventoryStatus) {
-        case 'INSTOCK':
-            return 'success';
+// เชื่อมต่อกับ WebSocket Server
+const socket = io('http://127.0.0.1:8000'); // URL ของ WebSocket Server
 
-        case 'LOWSTOCK':
-            return 'warning';
-
-        case 'OUTOFSTOCK':
-            return 'danger';
-
-        default:
-            return null;
+// ดึงข้อมูลจาก API
+async function fetchPersons() {
+    loading.value = true;
+    try {
+        const response = await axios.get('http://127.0.0.1:8000/api/person/');
+        persons.value = response.data
+            .filter((p) => p.verified === 1) // กรองเฉพาะ verified === 1
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .map((person) => ({
+                ...person,
+                formatted_id: person.id.toString().padStart(4, '0')
+            }));
+    } catch (error) {
+        console.error('Error:', error);
+    } finally {
+        loading.value = false;
     }
 }
+
+// ฟังก์ชันเมื่อรับข้อมูลจาก WebSocket
+socket.on('new-person', (newPerson) => {
+    // ตรวจสอบว่ามีข้อมูลใหม่เข้ามาหรือไม่ ถ้ามีก็จะดึงข้อมูลใหม่
+    fetchPersons();
+});
+
+// ฟิลเตอร์จาก search
+const filteredPersons = computed(() => {
+    const query = searchQuery.value.toLowerCase();
+    return persons.value.filter((p) => p.name?.toLowerCase().includes(query) || p.nisit?.toLowerCase().includes(query) || p.seat?.toString().includes(query));
+});
+
+// Pagination
+const paginatedPersons = computed(() => {
+    const start = currentPage.value * rowsPerPage.value;
+    return filteredPersons.value.slice(start, start + rowsPerPage.value);
+});
+
+// เปิด Dialog
+function showPersonDetail(person) {
+    selectedPerson.value = person;
+    dialogVisible.value = true;
+}
+
+function onBeforeHide() {
+    dialogVisible.value = false;
+}
+
+function onDialogShow() {
+    setTimeout(() => {
+        document.querySelector('.p-dialog')?.classList.add('transition-opacity');
+    }, 10);
+}
+
+function highlightMatch(text) {
+    const query = searchQuery.value.trim();
+    if (!query) return text;
+    const regex = new RegExp(`(${query})`, 'gi');
+    return text.replace(regex, '<mark>$1</mark>');
+}
+
+onMounted(() => {
+    fetchPersons(); // ดึงข้อมูลแรก
+
+    // อัปเดตข้อมูลใหม่จาก WebSocket ทุกครั้งที่มีการส่งข้อมูลใหม่
+    socket.on('new-person', fetchPersons);
+});
+
+onBeforeUnmount(() => {
+    socket.disconnect(); // ปิดการเชื่อมต่อ WebSocket เมื่อ component ถูกลบ
+});
 </script>
 
 <template>
-    <div class="flex flex-col">
-        <div class="card">
-            <div class="font-semibold text-xl">DataView</div>
-            <DataView :value="products" :layout="layout">
-                <template #header>
-                    <div class="flex justify-end">
-                        <SelectButton v-model="layout" :options="options" :allowEmpty="false">
-                            <template #option="{ option }">
-                                <i :class="[option === 'list' ? 'pi pi-bars' : 'pi pi-table']" />
-                            </template>
-                        </SelectButton>
-                    </div>
-                </template>
+    <div>
+        <div class="text-lg font-bold mb-2">เลขบัณฑิตที่แตะ TAG แล้ว</div>
 
-                <template #list="slotProps">
-                    <div class="flex flex-col">
-                        <div v-for="(item, index) in slotProps.items" :key="index">
-                            <div class="flex flex-col sm:flex-row sm:items-center p-6 gap-4" :class="{ 'border-t border-surface': index !== 0 }">
-                                <div class="md:w-40 relative">
-                                    <img class="block xl:block mx-auto rounded w-full" :src="`https://primefaces.org/cdn/primevue/images/product/${item.image}`" :alt="item.name" />
-                                    <Tag :value="item.inventoryStatus" :severity="getSeverity(item)" class="absolute dark:!bg-surface-900" style="left: 4px; top: 4px"></Tag>
-                                </div>
-                                <div class="flex flex-col md:flex-row justify-between md:items-center flex-1 gap-6">
-                                    <div class="flex flex-row md:flex-col justify-between items-start gap-2">
-                                        <div>
-                                            <span class="font-medium text-surface-500 dark:text-surface-400 text-sm">{{ item.category }}</span>
-                                            <div class="text-lg font-medium mt-2">{{ item.name }}</div>
-                                        </div>
-                                        <div class="bg-surface-100 p-1" style="border-radius: 30px">
-                                            <div
-                                                class="bg-surface-0 flex items-center gap-2 justify-center py-1 px-2"
-                                                style="
-                                                    border-radius: 30px;
-                                                    box-shadow:
-                                                        0px 1px 2px 0px rgba(0, 0, 0, 0.04),
-                                                        0px 1px 2px 0px rgba(0, 0, 0, 0.06);
-                                                "
-                                            >
-                                                <span class="text-surface-900 font-medium text-sm">{{ item.rating }}</span>
-                                                <i class="pi pi-star-fill text-yellow-500"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="flex flex-col md:items-end gap-8">
-                                        <span class="text-xl font-semibold">${{ item.price }}</span>
-                                        <div class="flex flex-row-reverse md:flex-row gap-2">
-                                            <Button icon="pi pi-heart" outlined></Button>
-                                            <Button icon="pi pi-shopping-cart" label="Buy Now" :disabled="item.inventoryStatus === 'OUTOFSTOCK'" class="flex-auto md:flex-initial whitespace-nowrap"></Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-
-                <template #grid="slotProps">
-                    <div class="grid grid-cols-12 gap-4">
-                        <div v-for="(item, index) in slotProps.items" :key="index" class="col-span-12 sm:col-span-6 lg:col-span-4 p-2">
-                            <div class="p-6 border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 rounded flex flex-col">
-                                <div class="bg-surface-50 flex justify-center rounded p-4">
-                                    <div class="relative mx-auto">
-                                        <img class="rounded w-full" :src="`https://primefaces.org/cdn/primevue/images/product/${item.image}`" :alt="item.name" style="max-width: 300px" />
-                                        <Tag :value="item.inventoryStatus" :severity="getSeverity(item)" class="absolute dark:!bg-surface-900" style="left: 4px; top: 4px"></Tag>
-                                    </div>
-                                </div>
-                                <div class="pt-6">
-                                    <div class="flex flex-row justify-between items-start gap-2">
-                                        <div>
-                                            <span class="font-medium text-surface-500 dark:text-surface-400 text-sm">{{ item.category }}</span>
-                                            <div class="text-lg font-medium mt-1">{{ item.name }}</div>
-                                        </div>
-                                        <div class="bg-surface-100 p-1" style="border-radius: 30px">
-                                            <div
-                                                class="bg-surface-0 flex items-center gap-2 justify-center py-1 px-2"
-                                                style="
-                                                    border-radius: 30px;
-                                                    box-shadow:
-                                                        0px 1px 2px 0px rgba(0, 0, 0, 0.04),
-                                                        0px 1px 2px 0px rgba(0, 0, 0, 0.06);
-                                                "
-                                            >
-                                                <span class="text-surface-900 font-medium text-sm">{{ item.rating }}</span>
-                                                <i class="pi pi-star-fill text-yellow-500"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="flex flex-col gap-6 mt-6">
-                                        <span class="text-2xl font-semibold">${{ item.price }}</span>
-                                        <div class="flex gap-2">
-                                            <Button icon="pi pi-shopping-cart" label="Buy Now" :disabled="item.inventoryStatus === 'OUTOFSTOCK'" class="flex-auto whitespace-nowrap"></Button>
-                                            <Button icon="pi pi-heart" outlined></Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-            </DataView>
+        <div class="mb-4">
+            <input v-model="searchQuery" type="text" placeholder="ค้นหาชื่อ, รหัสนิสิต, หรือเลขที่นั่ง" class="p-2 border rounded w-full max-w-md" />
         </div>
 
-        <div class="flex flex-col lg:flex-row gap-8">
-            <div class="lg:w-2/3">
-                <div class="card">
-                    <div class="font-semibold text-xl mb-4">PickList</div>
-                    <PickList v-model="picklistProducts" breakpoint="1400px" dataKey="id">
-                        <template #option="{ option }">
-                            {{ option.name }}
-                        </template>
-                    </PickList>
-                </div>
-            </div>
+        <!-- Loading -->
+        <div v-if="loading" class="text-center my-4">กำลังโหลดข้อมูล...</div>
 
-            <div class="lg:w-1/3">
-                <div class="card">
-                    <div class="font-semibold text-xl mb-4">OrderList</div>
-                    <OrderList v-model="orderlistProducts" breakpoint="1400px" dataKey="id" pt:pcList:root="w-full">
-                        <template #option="{ option }">
-                            {{ option.name }}
-                        </template>
-                    </OrderList>
-                </div>
+        <!-- Grid -->
+        <div v-else class="card flex flex-wrap gap-2">
+            <div v-for="(person, index) in paginatedPersons" :key="index" class="w-24 h-24 flex flex-col items-center justify-center text-center">
+                <Icon
+                    icon="material-symbols:person"
+                    class="text-4xl cursor-pointer"
+                    :class="{
+                        'text-green-500': person.verified === 1
+                    }"
+                    @click="() => showPersonDetail(person)"
+                />
+                <div class="text-xs mt-2" v-html="highlightMatch(person.nisit.toString())"></div>
             </div>
         </div>
+
+        <!-- Pagination -->
+        <Paginator class="mt-6" :rows="rowsPerPage" :totalRecords="filteredPersons.length" :first="currentPage * rowsPerPage" @page="(e) => (currentPage = e.page)" />
+
+        <!-- Dialog -->
+        <Dialog v-model:visible="dialogVisible" header="รายละเอียดผู้เข้าร่วม" modal :closable="true" :style="{ width: '300px', maxWidth: '90vw' }" @before-hide="onBeforeHide" @show="onDialogShow">
+            <div>
+                <p><strong>ชื่อ:</strong> {{ selectedPerson.name }}</p>
+                <p><strong>รหัสนิสิต:</strong> {{ selectedPerson.nisit }}</p>
+                <p><strong>คณะ:</strong> {{ selectedPerson.degree }}</p>
+                <p><strong>ที่นั่ง:</strong> {{ selectedPerson.seat }}</p>
+                <p><strong>เวลา:</strong> {{ new Date(selectedPerson.date).toLocaleString() }}</p>
+            </div>
+        </Dialog>
     </div>
 </template>
+
+<style scoped>
+.p-dialog {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.p-dialog-enter-active,
+.p-dialog-leave-active {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.p-dialog-enter,
+.p-dialog-leave-to {
+    opacity: 0;
+    transform: translateY(-50px);
+}
+.p-dialog .p-dialog-content {
+    padding: 20px;
+}
+.p-dialog-header {
+    background-color: #4caf50;
+    color: white;
+    text-align: center;
+}
+.p-dialog {
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+.p-dialog .p-dialog-header-close {
+    color: white;
+    font-size: 18px;
+}
+</style>
