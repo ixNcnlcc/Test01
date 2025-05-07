@@ -4,6 +4,13 @@ import AppConfigurator from './AppConfigurator.vue';
 import { useOnline } from '@vueuse/core';
 import { computed, onMounted } from 'vue';
 import { Icon, loadIcon } from '@iconify/vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+
+function goToLogin() {
+    router.push('/auth/login');
+}
 
 onMounted(async () => {
     await loadIcon('material-symbols:wifi-off-rounded');
@@ -68,7 +75,7 @@ const { toggleMenu, toggleDarkMode, isDarkTheme } = useLayout();
                         <i class="pi pi-inbox"></i>
                         <span>Messages</span>
                     </button>
-                    <button type="button" class="layout-topbar-action">
+                    <button type="button" class="layout-topbar-action" @click="goToLogin">
                         <i class="pi pi-user"></i>
                         <span>Profile</span>
                     </button>
