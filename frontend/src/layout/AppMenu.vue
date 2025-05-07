@@ -14,6 +14,7 @@ const model = ref([
             { label: 'แผนที่นั่ง', icon: 'material-symbols:airline-seat-recline-normal', to: '/uikit/Seat' },
             { label: 'รายชื่อบัณฑิต', icon: 'material-symbols:patient-list-outline', to: '/uikit/crud01' },
             { label: 'รายชื่อที่ผ่านเข้าประตู', icon: 'material-symbols:person-check-outline-rounded', to: '/uikit/List' },
+            { label: 'ตารางสรุป', icon: 'material-symbols:person-check-outline-rounded', to: '/uikit/Listdegree' },
             { label: 'File', icon: 'material-symbols:file-present-outline-sharp', to: '/uikit/file' },
             { label: 'Chart', icon: 'material-symbols:grouped-bar-chart-rounded', to: '/uikit/charts' },
             { label: 'Test', icon: 'svg-spinners:ring-resize', to: '/uikit/test' }

@@ -39,6 +39,11 @@ const router = createRouter({
                     component: () => import('@/views/uikit/ListDoc.vue')
                 },
                 {
+                    path: '/uikit/Listdegree',
+                    name: 'input',
+                    component: () => import('@/views/uikit/Listdegree.vue')
+                },
+                {
                     path: '/uikit/button',
                     name: 'button',
                     component: () => import('@/views/uikit/ButtonDoc.vue')

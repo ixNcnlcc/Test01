@@ -17,7 +17,7 @@ const selectedPerson = ref({});
 const toast = useToast();
 
 const currentPage = ref(0);
-const rowsPerPage = ref(180);
+const rowsPerPage = ref(1500);
 
 // ดึงข้อมูล
 async function fetchPersons() {
@@ -148,7 +148,7 @@ onMounted(fetchPersons);
 
         <!-- Persons -->
         <div v-else class="card flex flex-wrap gap-2">
-            <div v-for="(person, index) in paginatedPersons" :key="index" class="w-16 h-16 flex flex-col items-center justify-center text-center">
+            <div v-for="(person, index) in paginatedPersons" :key="index" class="w-9 h-18 flex flex-col items-center justify-center text-center">
                 <Icon
                     icon="material-symbols:event-seat"
                     class="text-4xl cursor-pointer"
